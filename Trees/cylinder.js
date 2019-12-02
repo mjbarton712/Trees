@@ -7,6 +7,8 @@ function initialize() {
 /**
  * @param top represents the upper y coordinate of the cylinder
  * @param bottom is for the lower y coordinate
+ * @param radiusBottom
+ * @param radiusTop
  * @param subdivision determines cylinder tessellation
  */
 function generateCylinder(bottom, top, radiusBottom, radiusTop, subdivision) {
