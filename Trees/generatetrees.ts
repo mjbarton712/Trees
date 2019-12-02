@@ -22,7 +22,7 @@ let umv:WebGLUniformLocation;
 let uproj:WebGLUniformLocation;
 let vPosition:GLint;
 let vColor:GLint;
-let rgb:vec4;
+let rgba:vec4;
 
 let treePoints:vec4[];
 let treeString:string;
@@ -61,7 +61,7 @@ window.onload = function init(){
     bottom = 0;
     top = 5;
 
-    rgb = new vec4(0.7, 0.5, 0.2, 1.0);
+    rgba = new vec4(0.7, 0.5, 0.2, 1.0);
 
     xAngle = yAngle = 0;
     canvas.addEventListener("mousedown", mouse_down);
@@ -69,18 +69,12 @@ window.onload = function init(){
     canvas.addEventListener("mouseup", mouse_up);
     window.addEventListener("keydown", keys);
 
-    //buildTreeString
-    //make to cylinders without using mv; build treePoints
-    makeTreeBuffer();
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     gl.clearColor(0.1, 0.2, 0.4, 1.0);
     gl.enable(gl.DEPTH_TEST);
 };
 
 function makeTreeBuffer(){
-    //TODO temp
-    treePoints = singleCylinder(bottom, top, bottomRadius, topRadius);
-
     buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(treePoints), gl.STATIC_DRAW);
@@ -88,10 +82,13 @@ function makeTreeBuffer(){
     vPosition = gl.getAttribLocation(program, "vPosition");
     gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 16, 0);
     gl.enableVertexAttribArray(vPosition);
+
+    vColor = gl.getAttribLocation(program, "vColor");
+    gl.vertexAttrib4fv(vColor, rgba);
 }
 
 function buildTreeString(iterations:number) {
-    //for (let times: number = 0; times < iterations; times++) {
+    for (let times: number = 0; times < iterations; times++) {
         let nextYear:string = "";
         for (let i: number = 0; i < treeString.length; i++) {
             switch (treeString.charAt(i)) {
@@ -112,20 +109,7 @@ function buildTreeString(iterations:number) {
                     break;
                 case 'X':
                     let rand:number = Math.random();
-                        //first two: kinda realistic quaking aspen/red maple-like trees
-                        //last one: starting to get to pine trees
-                    if(rand < .3)
-                        nextYear += "F[LX][^X]F[RX][&X]FX";
-                        //nextYear += "F[LL^X][&&X]F[RX][L&X]FX";
-                        //nextYear += "F[LLX][RR^X]F[L&&X][^X]F[RR&X]F[L^^^X][LL&X]F[RRR^X]FX";
-                    else if (rand < .6)
-                        nextYear += "F[LX][&X]F[RX][^X]FX";
-                        //nextYear += "F[R^X][&&X]F[R&X][LX]FX";
-                        //nextYear += "F[LLLX]F[RR^X][^X]F[L^^X][LLL&X][RRR^X]FX";
-                    else
-                        nextYear += "F[LX][&X][RX][^X]F[RX][LX][&X][^X]FX";
-                        //nextYear += "F[LL^X][&X][RRX]F[&&X][L&X][R^X]FX";
-                        //nextYear += "F[RRRX][LL&&X]F[^X]F[RRR&X][LL&X]F[R^X]FX";
+                    nextYear += chooseStrand(rand);
                     break;
                 case '\/':
                     nextYear += "\/";
@@ -142,46 +126,82 @@ function buildTreeString(iterations:number) {
             }
         }
         treeString = nextYear;
-    //}
+    }
+}
+
+function chooseStrand(rand:number):string{
+    let nextYear:string = "";
+    //first two: kinda realistic quaking aspen/red maple-like trees
+    //last one: starting to get to pine trees
+    //TODO scale tree with " before rest of nextYear
+    if(rand < .3)
+        nextYear += "F[LX][^X]F[RX][&X]FX";
+    //nextYear += "F[LL^X][&&X]F[RX][L&X]FX";
+    //nextYear += "F[LLX][RR^X]F[L&&X][^X]F[RR&X]F[L^^^X][LL&X]F[RRR^X]FX";
+    else if (rand < .7)
+        nextYear += "F[LX][&X]F[RX][^X]FX";
+    //nextYear += "F[R^X][&&X]F[R&X][LX]FX";
+    //nextYear += "F[LLLX]F[RR^X][^X]F[L^^X][LLL&X][RRR^X]FX";
+
+    /**else if (rand < .3)
+        nextYear += "F[L^X][&X][RX][^X]F[RX][L&X][&X][^X]FX";
+    else if (rand < .4)
+        nextYear += "F[L&X][&X][R^X][^X]F[LX]L[&X][^X]FX";
+    else if (rand < .5)
+        nextYear += "F[LX][&LX][R&X][^LX]F[RX][L^X][&X][^X]FX";
+    else if (rand < .6)
+        nextYear += "F[LX][&X][RX]F[RX][L^X][&X][^X]FX";
+    else if (rand < .7)
+        nextYear += "F[LX][&X][RX][^X]F[RX][LX][&X][^X]FX";
+    else if (rand < .8)
+        nextYear += "F[RX][L&X][^X]F[RX][L^X]R[&X]FX";
+    else if (rand < .9)
+        nextYear += "F[LX]R[&X][RX][^LLX]F[RX][L&X][&X][^RX]FX"; */
+    else
+        nextYear += "F[LX][&X][RX][^X]F[RX][LX][&X][^X]FX";
+    //nextYear += "F[LL^X][&X][RRX]F[&&X][L&X][R^X]FX";
+    //nextYear += "F[RRRX][LL&&X]F[^X]F[RRR&X][LL&X]F[R^X]FX";
+    return nextYear;
 }
 
 function convertToCylinders(){
-    //let currentCyl:vec4[] = singleCylinder(bottom, top, bottomRadius, topRadius);
+
+    let model:mat4 = new mat4();
+    let cylinder:vec4[];
 
     for(let i = 0; i < treeString.length; i++) {
         switch (treeString.charAt(i)) {
             case 'F':
-                //treePoints = treePoints.concat(singleCylinder(bottom, top, bottomRadius, topRadius));
-                //numCylinders++;
-                //temp = bottom;
-                //bottom = top;
-                //top = top + (top - temp);
-                gl.uniformMatrix4fv(umv, false, mv.flatten());
-                gl.drawArrays(gl.TRIANGLES, 0, getCylinderPoints());
-                mv = mv.mult(translate(0.0, top - bottom, 0.0));
-                mv = mv.mult(scalem(.99,.99,.99));
+                cylinder = singleCylinder(bottom, top, bottomRadius, topRadius);
+                for(let i:number = 0; i < cylinder.length; i++){
+                    cylinder[i] = model.mult(cylinder[i]);
+                }
+                model = model.mult(translate(0.0, top - bottom, 0.0));
+                //model = model.mult(scalem(.99,.99,.99));
+                treePoints = treePoints.concat(cylinder);
+                numCylinders++;
                 break;
             case 'X':
                 break;
             case 'L':
-                mv = mv.mult(rotateZ(30));
+                model = model.mult(rotateZ(30));
                 break;
             case 'R':
-                mv = mv.mult(rotateZ(-30));
+                model = model.mult(rotateZ(-30));
                 break;
             case '&':
-                mv = mv.mult(rotateX(30));
+                model = model.mult(rotateX(30));
                 break;
             case '^':
-                mv = mv.mult(rotateX(-30));
+                model = model.mult(rotateX(-30));
                 break;
             case '\"':
                 break;
             case '[':
-                branchStack.push(mv);
+                branchStack.push(model);
                 break;
             case ']':
-                mv = branchStack.pop();
+                model = branchStack.pop();
                 break;
         }
     }
@@ -203,13 +223,10 @@ function render(){
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 16, 0);
 
-    vColor = gl.getAttribLocation(program, "vColor");
-    gl.vertexAttrib4fv(vColor, rgb);
-
-    //buildTreeString(1);
+    //buildTreeString(3);
     convertToCylinders();
-    //will only need
-    //drawTrees();
+    makeTreeBuffer();
+    drawTrees();
 }
 
 function mouse_drag(event:MouseEvent){
