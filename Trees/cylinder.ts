@@ -1,11 +1,9 @@
 import {vec4} from "./helperfunctions.js";
 
 let cylinderPoints:number;
+let leafPoints:number;
 let cylinderModel:vec4[];
-
-function initialize(){
-    cylinderModel = [];
-}
+let leafModel:vec4[];
 
 /**
  * @param top represents the upper y coordinate of the cylinder
@@ -14,7 +12,6 @@ function initialize(){
  * @param radiusTop
  * @param subdivision determines cylinder tessellation
  */
-
 function generateCylinder(bottom:number, top:number, radiusBottom:number, radiusTop:number, subdivision:number){
     cylinderPoints = 0;
 
@@ -37,11 +34,35 @@ function generateCylinder(bottom:number, top:number, radiusBottom:number, radius
     }
 }
 
+function generateLeaf(top:number, size:number){
+    //NOTE: in the future, for a complex leaf, calculate leafPoints in here
+    //first leaf half
+    leafModel.push(new vec4(0.0, top, 0.0, 1.0));
+    leafModel.push(new vec4(size, top - size, size, 1.0));
+    leafModel.push(new vec4(-size, top - size, size, 1.0));
+    //second leaf half
+    leafModel.push(new vec4(size, top - size, size, 1.0));
+    leafModel.push(new vec4(-size, top - size, size, 1.0));
+    leafModel.push(new vec4(0.0, top - 2*size, 1.5*size, 1.0));
+}
+
 export function singleCylinder(bottom:number, top:number, radiusBottom:number, radiusTop:number):vec4[]{
-    initialize();
+    cylinderModel = [];
     generateCylinder(bottom, top, radiusBottom, radiusTop,20);
     return cylinderModel;
 }
+
+export function singleLeaf(top:number, size:number){
+    leafModel = [];
+    generateLeaf(top, size);
+    return leafModel;
+}
+
 export function getCylinderPoints():number{
     return cylinderPoints;
+}
+
+export function getLeafPoints():number{
+    leafPoints = 6;
+    return leafPoints;
 }

@@ -1,9 +1,8 @@
 import { vec4 } from "./helperfunctions.js";
 let cylinderPoints;
+let leafPoints;
 let cylinderModel;
-function initialize() {
-    cylinderModel = [];
-}
+let leafModel;
 /**
  * @param top represents the upper y coordinate of the cylinder
  * @param bottom is for the lower y coordinate
@@ -30,12 +29,32 @@ function generateCylinder(bottom, top, radiusBottom, radiusTop, subdivision) {
         cylinderPoints += 6;
     }
 }
+function generateLeaf(top, size) {
+    //NOTE: in the future, for a complex leaf, calculate leafPoints in here
+    //first leaf half
+    leafModel.push(new vec4(0.0, top, 0.0, 1.0));
+    leafModel.push(new vec4(size, top - size, size, 1.0));
+    leafModel.push(new vec4(-size, top - size, size, 1.0));
+    //second leaf half
+    leafModel.push(new vec4(size, top - size, size, 1.0));
+    leafModel.push(new vec4(-size, top - size, size, 1.0));
+    leafModel.push(new vec4(0.0, top - 2 * size, 1.5 * size, 1.0));
+}
 export function singleCylinder(bottom, top, radiusBottom, radiusTop) {
-    initialize();
+    cylinderModel = [];
     generateCylinder(bottom, top, radiusBottom, radiusTop, 20);
     return cylinderModel;
 }
+export function singleLeaf(top, size) {
+    leafModel = [];
+    generateLeaf(top, size);
+    return leafModel;
+}
 export function getCylinderPoints() {
     return cylinderPoints;
+}
+export function getLeafPoints() {
+    leafPoints = 6;
+    return leafPoints;
 }
 //# sourceMappingURL=cylinder.js.map
