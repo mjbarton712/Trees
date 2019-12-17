@@ -1,5 +1,6 @@
 import { flatten, initFileShaders, lookAt, mat4, perspective, rotateX, rotateY, rotateZ, scalem, translate, vec4 } from "./helperfunctions.js";
-import { getCylinderPoints, getLeafPoints, singleCylinder, singleLeaf } from "./cylinder.js";
+import { generateHill, getCylinderPoints, getHillPoints, getLeafPoints, singleCylinder, singleLeaf } from "./models.js";
+import { chooseStrandCurvy, chooseStrandFunky, chooseStrandGeneric } from "./treestrands.js";
 let gl;
 let program;
 let canvas;
@@ -11,11 +12,16 @@ let proj;
 let umv;
 let uproj;
 let vPosition;
-let vColor;
+let vNormal;
+let vAmbientDiffuseColor;
+let vSpecularColor;
+let vSpecularExponent;
+let light_position;
+let light_color;
+let ambient_light;
 let treeColor;
 let leafColor;
-let treePoints;
-let leafPoints;
+let treePoints, leafPoints, hillPoints;
 let treeString;
 let branchStack; //for storing model (translate, rotate)
 let scaleStack; //for storing scale
@@ -23,6 +29,7 @@ let bottom;
 let top;
 let bottomRadius;
 let topRadius;
+let scalingFactor;
 let numCylinders;
 let numLeaves;
 let defaultCylinder;
@@ -30,8 +37,9 @@ let defaultLeaf;
 let mouse_button_down = false;
 let prevMouseX = 0;
 let prevMouseY = 0;
-let xAngle;
-let yAngle;
+let xAngle, yAngle, xRot, zRot;
+let red;
+let interval;
 window.onload = function init() {
     canvas = document.getElementById("gl-canvas");
     gl = canvas.getContext('webgl2');
@@ -56,28 +64,39 @@ window.onload = function init() {
     top = 5;
     defaultCylinder = singleCylinder(bottom, top, bottomRadius, topRadius);
     defaultLeaf = singleLeaf(top, 3);
+    hillPoints = generateHill(100, 1000, 10);
     treeColor = new vec4(0.7, 0.5, 0.2, 1.0);
-    leafColor = new vec4(0.3, 0.7, 0.2, 1.0);
+    red = .3;
+    leafColor = new vec4(red, 0.7, 0.3, 1.0);
     xAngle = yAngle = 0;
+    xRot = zRot = 40;
     canvas.addEventListener("mousedown", mouse_down);
     canvas.addEventListener("mousemove", mouse_drag);
     canvas.addEventListener("mouseup", mouse_up);
     window.addEventListener("keydown", keys);
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    gl.clearColor(0.1, 0.2, 0.4, 1.0);
+    gl.clearColor(0.4, 0.7, 0.9, 1.0);
     gl.enable(gl.DEPTH_TEST);
 };
 function makeTreeBuffer() {
-    let totalGeometry = treePoints.concat(leafPoints);
+    let totalGeometry = hillPoints.concat(treePoints).concat(leafPoints);
     buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(totalGeometry), gl.STATIC_DRAW);
     vPosition = gl.getAttribLocation(program, "vPosition");
-    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 16, 0);
+    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 32, 0);
     gl.enableVertexAttribArray(vPosition);
-    vColor = gl.getAttribLocation(program, "vColor");
+    vNormal = gl.getAttribLocation(program, "vNormal");
+    gl.vertexAttribPointer(vNormal, 4, gl.FLOAT, false, 32, 16);
+    gl.enableVertexAttribArray(vNormal);
+    vAmbientDiffuseColor = gl.getAttribLocation(program, "vAmbientDiffuseColor");
+    vSpecularColor = gl.getAttribLocation(program, "vSpecularColor");
+    vSpecularExponent = gl.getAttribLocation(program, "vSpecularExponent");
+    light_position = gl.getUniformLocation(program, "light_position");
+    light_color = gl.getUniformLocation(program, "light_color");
+    ambient_light = gl.getUniformLocation(program, "ambient_light");
 }
-function buildTreeString(iterations) {
+function buildTreeString(iterations, typeTree) {
     for (let level = 0; level < iterations; level++) {
         let nextYear = "";
         for (let i = 0; i < treeString.length; i++) {
@@ -100,7 +119,21 @@ function buildTreeString(iterations) {
                     break;
                 case 'X': //branching production
                     let rand = Math.random();
-                    nextYear += chooseStrand(rand);
+                    switch (typeTree) {
+                        case 1:
+                            nextYear += chooseStrandFunky(rand);
+                            xRot = zRot = 30;
+                            break;
+                        case 2:
+                            nextYear += chooseStrandCurvy(rand);
+                            xRot = zRot = 6;
+                            top = 2;
+                            topRadius = 9.85;
+                            break;
+                        default:
+                            nextYear += chooseStrandGeneric(rand);
+                            xRot = zRot = 40;
+                    }
                     break;
                 case 'V': //leaf production
                     nextYear += "V";
@@ -120,38 +153,12 @@ function buildTreeString(iterations) {
     convertToCylinders();
     makeTreeBuffer();
 }
-function chooseStrand(rand) {
-    let nextYear = "";
-    //first one: kinda realistic quaking aspen/red maple-like trees
-    // experiment: X;   F-->FF and X --> F+[-F-XF-X][+FF][-XF[+X]][++F-X]
-    //TODO scale tree with " before rest of nextYear
-    if (rand < .1)
-        nextYear += "F[LX[V]][^X[V]]F[RX[V]][&X[V]]FX";
-    else if (rand < .2)
-        nextYear += "F[LX[V]][&X[V]]F[RX[V]][^X[V]]FX";
-    else if (rand < .3)
-        nextYear += "F[L^X[V]][&X[V]][RX[V]][^X[V]]F[RX[V]][L&X[V]][&X[V]][^X[V]]FX";
-    else if (rand < .4)
-        nextYear += "F[L&X[V]][&X[V]][R^X[V]][^X[V]]F[LX[V]]L[&X[V]]R[^X[V]]FX";
-    else if (rand < .5)
-        nextYear += "F[LX[V]][&LX[V]][R&X[V]][^LX[V]]F[RX[V]][L^X[V]][&X[V]][^X[V]]FX";
-    else if (rand < .6)
-        nextYear += "F[LX[V]][&X[V]][RX[V]]F[RX[V]][L^X[V]][&X[V]][^X[V]]FX";
-    else if (rand < .7)
-        nextYear += "F[LX[V]][&X[V]][RX[V]][^X[V]]F[RX[V]][LX[V]][&X[V]][^X[V]]FX";
-    else if (rand < .8)
-        nextYear += "F[RX[V]][L&X[V]][^X[V]]F[RX[V]]L[L^X[V]]R[&X[V]]FX";
-    else if (rand < .9)
-        nextYear += "F[LX[V]]R[&X[V]][RX[V]][^LLX[V]]F[RX[V]][L&X[V]][&X[V]][^RX[V]]FX";
-    else
-        nextYear += "F[LX[V]][&X[V]][RX[V]][^X[V]]F[RX[V]][LX[V]][&X[V]][^X[V]]FX";
-    return nextYear;
-}
 function convertToCylinders() {
     treePoints = [];
     leafPoints = [];
     numCylinders = 0;
     numLeaves = 0;
+    scalingFactor = topRadius / bottomRadius;
     for (let i = 0; i < treeString.length; i++) {
         switch (treeString.charAt(i)) {
             case 'F':
@@ -159,22 +166,22 @@ function convertToCylinders() {
                     treePoints[(numCylinders * defaultCylinder.length) + i] = model.mult(scale.mult(defaultCylinder[i]));
                 }
                 model = model.mult(translate(0.0, top - bottom, 0.0));
-                scale = scale.mult(scalem(.95, 1.0, .95));
+                scale = scale.mult(scalem(scalingFactor, 1.0, scalingFactor));
                 numCylinders++;
                 break;
             case 'X':
                 break;
             case 'L':
-                model = model.mult(rotateZ(40));
+                model = model.mult(rotateZ(zRot));
                 break;
             case 'R':
-                model = model.mult(rotateZ(-40));
+                model = model.mult(rotateZ(-zRot));
                 break;
             case '&':
-                model = model.mult(rotateX(40));
+                model = model.mult(rotateX(xRot));
                 break;
             case '^':
-                model = model.mult(rotateX(-40));
+                model = model.mult(rotateX(-xRot));
                 break;
             case 'V': //vegetation
                 for (let i = 0; i < defaultLeaf.length; i++) {
@@ -197,10 +204,12 @@ function convertToCylinders() {
 }
 function drawTrees() {
     gl.uniformMatrix4fv(umv, false, mv.flatten());
-    gl.vertexAttrib4fv(vColor, treeColor);
-    gl.drawArrays(gl.TRIANGLES, 0, getCylinderPoints() * numCylinders);
-    gl.vertexAttrib4fv(vColor, leafColor);
-    gl.drawArrays(gl.TRIANGLES, getCylinderPoints() * numCylinders, getLeafPoints() * numLeaves);
+    gl.vertexAttrib4fv(vAmbientDiffuseColor, new vec4(.2, .6, .4, 1.0));
+    gl.drawArrays(gl.TRIANGLES, 0, getHillPoints());
+    gl.vertexAttrib4fv(vAmbientDiffuseColor, treeColor);
+    gl.drawArrays(gl.TRIANGLES, getHillPoints(), getCylinderPoints() * numCylinders);
+    gl.vertexAttrib4fv(vAmbientDiffuseColor, leafColor);
+    gl.drawArrays(gl.TRIANGLES, getHillPoints() + getCylinderPoints() * numCylinders, getLeafPoints() * numLeaves);
 }
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -210,9 +219,13 @@ function render() {
     mv = mv.mult(rotateY(yAngle).mult(rotateX(xAngle)));
     gl.uniformMatrix4fv(umv, false, mv.flatten());
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 16, 0);
+    gl.vertexAttrib4fv(vSpecularColor, [1.0, 1.0, 1.0, 1.0]);
+    gl.vertexAttrib1f(vSpecularExponent, 30.0);
+    gl.uniform4fv(light_position, mv.mult(new vec4(0, 500, 0, 1)).flatten());
+    gl.uniform4fv(light_color, [1, 1, 1, 1]);
+    gl.uniform4fv(ambient_light, [.5, .5, .5, 5]);
     //buildTreeString(1);
-    //mv = mv.mult(scalem(1.5,1.5,1.5));
+    mv = mv.mult(scalem(.9, .9, .9));
     drawTrees();
 }
 function mouse_drag(event) {
@@ -241,9 +254,47 @@ function mouse_up() {
 function keys(event) {
     switch (event.key) {
         case " ":
-            buildTreeString(5);
+            clearTree();
+            buildTreeString(5, 0);
+            break;
+        case "f":
+            clearTree();
+            buildTreeString(5, 1);
+            break;
+        case "c":
+            clearTree();
+            buildTreeString(5, 2);
+            break;
+        case ".":
+            window.clearInterval(interval);
+            changeLeafColors();
             break;
     }
     requestAnimationFrame(render);
+}
+function changeLeafColors() {
+    interval = window.setInterval(update, 1000);
+    function update() {
+        red = red + (1.0 - red) / 2;
+        leafColor = new vec4(red, 0.7 - (.3 * red), 0.3 - (.3 * red), 1.0);
+        requestAnimationFrame(render);
+    }
+}
+function clearTree() {
+    model = new mat4();
+    scale = new mat4();
+    treeString = "[X]";
+    branchStack = [];
+    scaleStack = [];
+    numCylinders = 0;
+    numLeaves = 0;
+    bottomRadius = 10;
+    topRadius = 9.5;
+    bottom = 0;
+    top = 5;
+    red = .3;
+    leafColor = new vec4(red, 0.7, 0.3, 1.0);
+    xAngle = yAngle = 0;
+    xRot = zRot = 40;
 }
 //# sourceMappingURL=generatetrees.js.map
