@@ -6,4 +6,6 @@ Each tree is created using a string, with different characters performing differ
 
 All code is original code to this project. 
 
+See the trees for yourself!:
 https://mjbarton712.github.io/Trees/
+Once the blue backgroudn appears, press space to generate a tree, and then explore the other options.
